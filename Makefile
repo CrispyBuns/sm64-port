@@ -24,6 +24,8 @@ TARGET_WEB ?= 0
 # Compiler to use (ido or gcc)
 COMPILER ?= ido
 
+TARGET_DOS ?= 1
+
 # Automatic settings only for ports
 ifeq ($(TARGET_N64),0)
 
@@ -34,8 +36,10 @@ ifeq ($(TARGET_N64),0)
     ifeq ($(OS),Windows_NT)
       TARGET_WINDOWS := 1
     else
-      # TODO: Detect Mac OS X, BSD, etc. For now, assume Linux
-      TARGET_LINUX := 1
+	  ifeq ($(TARGET_DOS),0)
+	      # TODO: Detect Mac OS X, BSD, etc. For now, assume Linux
+	      TARGET_LINUX := 1
+	   endif
     endif
   endif
 
@@ -48,7 +52,7 @@ ifeq ($(TARGET_N64),0)
     endif
   else
     # On others, default to OpenGL
-    ENABLE_OPENGL ?= 1
+  	ENABLE_OPENGL ?= 1
   endif
 
   # Sanity checks
@@ -100,7 +104,7 @@ ifeq ($(VERSION),sh)
   VERSION_DEF := VERSION_SH
   GRUCODE_DEF := F3D_NEW
 # TODO: GET RID OF THIS!!! We should mandate assets for Shindou like EU but we dont have the addresses extracted yet so we'll just pretend you have everything extracted for now.
-  NOEXTRACT := 1 
+  NOEXTRACT := 1
 else
   $(error unknown version "$(VERSION)")
 endif
@@ -194,7 +198,11 @@ else
 ifeq ($(TARGET_WEB),1)
   BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_web
 else
-  BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_pc
+  ifeq ($(TARGET_DOS),1)
+    BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_dos
+  else
+    BUILD_DIR := $(BUILD_DIR_BASE)/$(VERSION)_pc
+  endif
 endif
 endif
 
@@ -202,11 +210,15 @@ LIBULTRA := $(BUILD_DIR)/libultra.a
 ifeq ($(TARGET_WEB),1)
 EXE := $(BUILD_DIR)/$(TARGET).html
 else
-ifeq ($(TARGET_WINDOWS),1)
-EXE := $(BUILD_DIR)/$(TARGET).exe
-else
-EXE := $(BUILD_DIR)/$(TARGET)
-endif
+  ifeq ($(TARGET_WINDOWS),1)
+    EXE := $(BUILD_DIR)/$(TARGET).exe
+  else
+    ifeq ($(TARGET_DOS),1)
+      EXE := $(BUILD_DIR)/$(TARGET).exe
+    else
+      EXE := $(BUILD_DIR)/$(TARGET)
+    endif
+  endif
 endif
 ROM := $(BUILD_DIR)/$(TARGET).z64
 ELF := $(BUILD_DIR)/$(TARGET).elf
@@ -438,6 +450,17 @@ endif
 CPP := cpp -P
 OBJDUMP := objdump
 OBJCOPY := objcopy
+
+ifeq ($(TARGET_DOS),1)
+  CPP := i586-pc-msdosdjgpp-cpp -P
+  OBJDUMP := i586-pc-msdosdjgpp-objdump
+  OBJCOPY := i586-pc-msdosdjgpp-objcopy
+  AS := i586-pc-msdosdjgpp-as
+  CC := i586-pc-msdosdjgpp-gcc
+  CXX := i586-pc-msdosdjgpp-g++
+  LD := $(CXX)
+endif
+
 PYTHON := python3
 
 # Platform-specific compiler and linker flags
@@ -452,6 +475,10 @@ endif
 ifeq ($(TARGET_WEB),1)
   PLATFORM_CFLAGS  := -DTARGET_WEB
   PLATFORM_LDFLAGS := -lm -no-pie -s TOTAL_MEMORY=20MB -g4 --source-map-base http://localhost:8080/ -s "EXTRA_EXPORTED_RUNTIME_METHODS=['callMain']"
+endif
+ifeq ($(TARGET_DOS),1)
+  PLATFORM_CFLAGS  := -DTARGET_DOS -std=gnu99 -nostdlib -m32 -march=i386 -ffreestanding -Isrc/pc/gfx/mesa
+  PLATFORM_LDFLAGS := -lm -no-pie lib/libOSMesa.a
 endif
 
 PLATFORM_CFLAGS += -DNO_SEGMENTED_MEMORY
@@ -484,8 +511,12 @@ endif
 
 GFX_CFLAGS += -DWIDESCREEN
 
+ifeq ($(TARGET_DOS),0)
+  MARCH := -march=native
+endif
+
 CC_CHECK := $(CC) -fsyntax-only -fsigned-char $(INCLUDE_CFLAGS) -Wall -Wextra -Wno-format-security -D_LANGUAGE_C $(VERSION_CFLAGS) $(MATCH_CFLAGS) $(PLATFORM_CFLAGS) $(GFX_CFLAGS) $(GRUCODE_CFLAGS)
-CFLAGS := $(OPT_FLAGS) $(INCLUDE_CFLAGS) -D_LANGUAGE_C $(VERSION_CFLAGS) $(MATCH_CFLAGS) $(PLATFORM_CFLAGS) $(GFX_CFLAGS) $(GRUCODE_CFLAGS) -fno-strict-aliasing -fwrapv -march=native
+CFLAGS := $(OPT_FLAGS) $(INCLUDE_CFLAGS) -D_LANGUAGE_C $(VERSION_CFLAGS) $(MATCH_CFLAGS) $(PLATFORM_CFLAGS) $(GFX_CFLAGS) $(GRUCODE_CFLAGS) -fno-strict-aliasing -fwrapv $(MARCH)
 
 ASFLAGS := -I include -I $(BUILD_DIR) $(VERSION_ASFLAGS)
 

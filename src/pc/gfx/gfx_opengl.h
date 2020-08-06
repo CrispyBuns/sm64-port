@@ -5,4 +5,8 @@
 
 extern struct GfxRenderingAPI gfx_opengl_api;
 
+#ifdef TARGET_DOS
+extern void *osmesa_buffer;
+#endif
+
 #endif
